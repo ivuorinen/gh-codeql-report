@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { Octokit } from 'octokit';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -114,7 +115,12 @@ export async function main(): Promise<number> {
 }
 
 // Only run if this is the main module (not imported for testing)
-if (import.meta.url === `file://${process.argv[1]}`) {
+const modulePath = fileURLToPath(import.meta.url);
+const isMainModule =
+  process.argv[1] &&
+  (modulePath === process.argv[1] || modulePath === fileURLToPath(`file://${process.argv[1]}`));
+
+if (isMainModule) {
   main().then((exitCode) => {
     process.exit(exitCode);
   });
