@@ -32,7 +32,10 @@
     "lint": "biome check src/",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release:patch": "npm version patch -m 'chore: release v%s' && git push origin main --follow-tags",
+    "release:minor": "npm version minor -m 'chore: release v%s' && git push origin main --follow-tags",
+    "release:major": "npm version major -m 'chore: release v%s' && git push origin main --follow-tags"
   },
   "dependencies": {
     "@types/yargs": "^17.0.33",
