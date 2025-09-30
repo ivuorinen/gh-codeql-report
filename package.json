@@ -1,6 +1,6 @@
 {
   "name": "@ivuorinen/gh-codeql-report",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Collect repository CodeQL findings as a LLM ready report for easier fixing.",
   "keywords": [
     "cli",
