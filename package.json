@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@types/yargs": "^17.0.33",
-    "node-sarif-builder": "^3.2.0",
+    "node-sarif-builder": "^4.0.0",
     "octokit": "^5.0.3",
     "simple-git": "^3.28.0",
     "yargs": "^18.0.0"
