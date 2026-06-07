@@ -52,7 +52,7 @@
     "lint-staged": "^17.0.0",
     "tsx": "^4.20.6",
     "typescript": "^6.0.0",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.0"
   },
   "lint-staged": {
     "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
