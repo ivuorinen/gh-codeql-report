@@ -27,6 +27,7 @@ export function formatAsSARIF(
   let toolVersion = '1.0.0';
   if (detailLevel === 'full' && alerts.length > 0) {
     const fullAlert = filterAlertByDetail(alerts[0], 'full');
+    /* v8 ignore next 3 -- `filterAlertByDetail(_, 'full')` always sets tool_version; the guard only narrows the return type */
     if ('tool_version' in fullAlert) {
       toolVersion = fullAlert.tool_version;
     }
