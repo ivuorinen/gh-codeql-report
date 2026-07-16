@@ -81,8 +81,9 @@ describe('CLI', () => {
     vi.mocked(formatAsMarkdown).mockReturnValue('# Mock Markdown');
     vi.mocked(formatAsSARIF).mockReturnValue('{"mock":"sarif"}');
 
-    // Mock Octokit constructor
-    vi.mocked(Octokit).mockImplementation(() => ({}) as any);
+    // Mock Octokit constructor: a class is constructable and survives biome's
+    // useArrowFunction lint (an arrow function can't be `new`ed).
+    vi.mocked(Octokit).mockImplementation(class {} as never);
   });
 
   afterEach(() => {

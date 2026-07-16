@@ -88,8 +88,10 @@ export async function main(): Promise<number> {
       case 'md':
         content = formatAsMarkdown(alerts, repoName, argv.detail);
         break;
+      /* v8 ignore start -- defensive: yargs `choices` restricts format to the cases above */
       default:
         throw new Error(`Unsupported format: ${argv.format}`);
+      /* v8 ignore stop */
     }
 
     // Generate output filename
@@ -120,8 +122,10 @@ const isMainModule =
   process.argv[1] &&
   (modulePath === process.argv[1] || modulePath === fileURLToPath(`file://${process.argv[1]}`));
 
+/* v8 ignore start -- module bootstrap, only runs when executed as the CLI entrypoint */
 if (isMainModule) {
   main().then((exitCode) => {
     process.exit(exitCode);
   });
 }
+/* v8 ignore stop */
