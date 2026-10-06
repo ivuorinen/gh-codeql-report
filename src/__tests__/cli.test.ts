@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { Octokit } from 'octokit';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../cli.js';
 import { formatAsJSON } from '../formatters/json.js';
 import { formatAsMarkdown } from '../formatters/markdown.js';
