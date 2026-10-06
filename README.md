@@ -46,10 +46,11 @@ npm run build
 
 ## Prerequisites
 
-- **Node.js** 18+ (ES Modules support)
+- **Node.js** 22+
 - **GitHub repository** with CodeQL scanning enabled
 - **Authentication**: Either:
-  - `GITHUB_TOKEN` environment variable with `security_events:read` scope, or
+  - `GITHUB_TOKEN` environment variable with the `security_events` scope (classic token) or
+    "Code scanning alerts: read" permission (fine-grained token), or
   - GitHub CLI (`gh`) authenticated
 
 ## Authentication
@@ -154,7 +155,7 @@ Balanced detail for most use cases:
 - Everything from minimum level
 - Rule description
 - Column numbers
-- Alert state (open, dismissed, etc.)
+- Alert state (always `open`: only open alerts are fetched)
 
 ### Full
 Complete information:
@@ -222,8 +223,6 @@ npm run format
 ```bash
 # Run all tests with coverage
 npm test
-
-# Current coverage: 98.91%
 ```
 
 The test suite includes:
