@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -121,14 +122,24 @@ export async function main(): Promise<number> {
   }
 }
 
-// Only run if this is the main module (not imported for testing)
-const modulePath = fileURLToPath(import.meta.url);
-const isMainModule =
-  process.argv[1] &&
-  (modulePath === process.argv[1] || modulePath === fileURLToPath(`file://${process.argv[1]}`));
+/**
+ * True when the script node was started with (`argv1`) is the module at `moduleUrl`.
+ *
+ * Both sides go through realpath because npm runs bins via `node_modules/.bin`
+ * symlinks: `import.meta.url` is symlink-resolved while `process.argv[1]` is not,
+ * so a plain string comparison made the installed CLI exit 0 without running.
+ */
+export function isMainModule(argv1: string | undefined, moduleUrl: string): boolean {
+  if (!argv1) return false;
+  try {
+    return realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
 
-/* v8 ignore start -- module bootstrap, only runs when executed as the CLI entrypoint */
-if (isMainModule) {
+/* v8 ignore start -- module bootstrap, only runs when executed as the CLI entrypoint (covered by bin.test.ts in a child process) */
+if (isMainModule(process.argv[1], import.meta.url)) {
   main().then((exitCode) => {
     process.exit(exitCode);
   });
