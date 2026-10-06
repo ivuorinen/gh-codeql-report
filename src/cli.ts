@@ -13,7 +13,8 @@ import { formatAsSARIF } from './formatters/sarif.js';
 import { formatAsText } from './formatters/text.js';
 import { getGitHubToken } from './lib/auth.js';
 import { fetchAllAlertsWithDetails } from './lib/codeql.js';
-import { getGitHubRepoFromRemote } from './lib/git.js';
+import type { GitHubRepo } from './lib/git.js';
+import { getGitHubRepoFromRemote, parseGitHubUrl } from './lib/git.js';
 import type { DetailLevel } from './lib/types.js';
 
 // Read our own package.json explicitly: yargs' `.version()` auto-detection finds the
@@ -24,6 +25,7 @@ interface Arguments {
   format: string;
   output?: string;
   detail: DetailLevel;
+  repo?: string;
 }
 
 export async function main(): Promise<number> {
@@ -48,6 +50,11 @@ export async function main(): Promise<number> {
       type: 'string',
       description: 'Output file path (optional, defaults to code-scanning-report-[timestamp])',
     })
+    .option('repo', {
+      alias: 'r',
+      type: 'string',
+      description: 'Repository as owner/name or GitHub URL (defaults to the git remote here)',
+    })
     .help()
     .alias('help', 'h')
     .version(version)
@@ -66,9 +73,18 @@ export async function main(): Promise<number> {
     const token = getGitHubToken();
     const octokit = new Octokit({ auth: token });
 
-    // Get repository info from git remote
-    console.log('📂 Detecting repository from git remote...');
-    const repo = await getGitHubRepoFromRemote();
+    // Get repository info from --repo, else from the git remote
+    let repo: GitHubRepo;
+    if (argv.repo) {
+      const parsed = parseGitHubUrl(argv.repo);
+      if (!parsed) {
+        throw new Error(`Unable to parse --repo "${argv.repo}"; expected owner/name`);
+      }
+      repo = parsed;
+    } else {
+      console.log('📂 Detecting repository from git remote...');
+      repo = getGitHubRepoFromRemote();
+    }
     console.log(`   Repository: ${repo.owner}/${repo.repo}`);
 
     // Fetch CodeQL alerts

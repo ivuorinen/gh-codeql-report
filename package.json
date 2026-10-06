@@ -28,6 +28,7 @@
   "preferGlobal": true,
   "scripts": {
     "build": "tsc",
+    "dev": "tsx src/cli.ts",
     "test": "vitest run --coverage",
     "lint": "biome check src/",
     "lint:fix": "biome check --write .",

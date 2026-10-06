@@ -96,6 +96,7 @@ gh-codeql-report [options]
 | `--format`  | `-f`  | Output format: `json`, `sarif`, `txt`, `md`      | `json`                                      |
 | `--detail`  | `-d`  | Detail level: `minimum`, `medium`, `full`, `raw` | `medium`                                    |
 | `--output`  | `-o`  | Output file path                                 | `code-scanning-report-[timestamp].[format]` |
+| `--repo`    | `-r`  | Repository as `owner/name` or GitHub URL         | git remote of the current directory         |
 | `--help`    | `-h`  | Show help                                        |                                             |
 | `--version` | `-v`  | Show version                                     |                                             |
 
@@ -193,8 +194,11 @@ Compiles TypeScript to `dist/` directory.
 ### Run Locally
 
 ```bash
-# Using ts-node
-npx tsx src/cli.ts
+# From source, against this repository
+npm run dev
+
+# From source, against another repository (args after --)
+npm run dev -- --repo owner/name --format md --detail full
 
 # Using compiled version
 node dist/cli.js

@@ -9,7 +9,7 @@ import { formatAsText } from '../formatters/text.js';
 import { getGitHubToken } from '../lib/auth.js';
 import type { CodeQLAlert } from '../lib/codeql.js';
 import { fetchAllAlertsWithDetails } from '../lib/codeql.js';
-import { getGitHubRepoFromRemote } from '../lib/git.js';
+import { getGitHubRepoFromRemote, parseGitHubUrl } from '../lib/git.js';
 
 // Mock all dependencies
 vi.mock('node:fs/promises');
@@ -196,6 +196,36 @@ describe('CLI', () => {
       expect(exitCode).toBe(0);
 
       expect(formatAsJSON).toHaveBeenCalledWith([mockAlert], 'raw');
+    });
+
+    it('should target --repo instead of the git remote', async () => {
+      process.argv = ['node', 'cli.js', '--repo', 'other/target'];
+      vi.mocked(parseGitHubUrl).mockReturnValue({ owner: 'other', repo: 'target' });
+      vi.mocked(fetchAllAlertsWithDetails).mockResolvedValue([mockAlert]);
+
+      const exitCode = await main();
+
+      expect(exitCode).toBe(0);
+      expect(parseGitHubUrl).toHaveBeenCalledWith('other/target');
+      expect(getGitHubRepoFromRemote).not.toHaveBeenCalled();
+      expect(fetchAllAlertsWithDetails).toHaveBeenCalledWith(
+        expect.anything(),
+        { owner: 'other', repo: 'target' },
+        'medium',
+      );
+    });
+
+    it('should fail on an unparseable --repo', async () => {
+      process.argv = ['node', 'cli.js', '--repo', 'nonsense'];
+      vi.mocked(parseGitHubUrl).mockReturnValue(null);
+
+      const exitCode = await main();
+
+      expect(exitCode).toBe(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Error: Unable to parse --repo "nonsense"; expected owner/name',
+      );
+      expect(fetchAllAlertsWithDetails).not.toHaveBeenCalled();
     });
 
     it('should pass the detail level to the alert fetch', async () => {
