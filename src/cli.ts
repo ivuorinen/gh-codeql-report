@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { Octokit } from 'octokit';
 import yargs from 'yargs';
@@ -13,6 +14,10 @@ import { getGitHubToken } from './lib/auth.js';
 import { fetchAllAlertsWithDetails } from './lib/codeql.js';
 import { getGitHubRepoFromRemote } from './lib/git.js';
 import type { DetailLevel } from './lib/types.js';
+
+// Read our own package.json explicitly: yargs' `.version()` auto-detection finds the
+// caller's project package.json instead, so `--version` reported the wrong version.
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
 
 interface Arguments {
   format: string;
@@ -44,7 +49,7 @@ export async function main(): Promise<number> {
     })
     .help()
     .alias('help', 'h')
-    .version()
+    .version(version)
     .alias('version', 'v')
     .parse()) as Arguments;
 
