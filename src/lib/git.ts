@@ -1,4 +1,4 @@
-import simpleGit from 'simple-git';
+import { execFileSync } from 'node:child_process';
 
 export interface GitHubRepo {
   owner: string;
@@ -30,38 +30,38 @@ export function parseGitHubUrl(url: string): GitHubRepo | null {
 }
 
 /**
- * Get GitHub owner and repo from current directory's git remote
+ * Run git with an argument array (no shell) and return trimmed stdout.
+ * stderr is captured, so git's own message ends up in the thrown error.
  */
-export async function getGitHubRepoFromRemote(cwd?: string): Promise<GitHubRepo> {
-  const git = simpleGit(cwd);
+function git(args: string[], cwd?: string): string {
+  return execFileSync('git', args, {
+    cwd,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
 
-  try {
-    const remotes = await git.getRemotes(true);
+/**
+ * Get GitHub owner and repo from current directory's git remote.
+ *
+ * Shells out to git directly: simple-git was a dependency for this one read and
+ * carried command-execution advisories (GHSA-x6jw-m9v5-85vh and others).
+ */
+export function getGitHubRepoFromRemote(cwd?: string): GitHubRepo {
+  const remotes = git(['remote'], cwd).split('\n').filter(Boolean);
 
-    if (remotes.length === 0) {
-      throw new Error('No git remotes found. Make sure you are in a git repository.');
-    }
-
-    // Try origin first, then fall back to the first remote
-    const originRemote = remotes.find((r) => r.name === 'origin');
-    const remote = originRemote || remotes[0];
-
-    if (!remote.refs.fetch && !remote.refs.push) {
-      throw new Error('No valid remote URL found.');
-    }
-
-    const remoteUrl = remote.refs.fetch || remote.refs.push;
-    const repoInfo = parseGitHubUrl(remoteUrl);
-
-    if (!repoInfo) {
-      throw new Error(`Unable to parse GitHub repository from remote URL: ${remoteUrl}`);
-    }
-
-    return repoInfo;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to get git remote information.');
+  if (remotes.length === 0) {
+    throw new Error('No git remotes found. Make sure you are in a git repository.');
   }
+
+  // Try origin first, then fall back to the first remote
+  const remote = remotes.includes('origin') ? 'origin' : remotes[0];
+  const remoteUrl = git(['remote', 'get-url', remote], cwd);
+  const repoInfo = parseGitHubUrl(remoteUrl);
+
+  if (!repoInfo) {
+    throw new Error(`Unable to parse GitHub repository from remote URL: ${remoteUrl}`);
+  }
+
+  return repoInfo;
 }

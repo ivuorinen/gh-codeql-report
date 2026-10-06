@@ -71,7 +71,7 @@ describe('CLI', () => {
 
     // Setup default mocks
     vi.mocked(getGitHubToken).mockReturnValue('test-token');
-    vi.mocked(getGitHubRepoFromRemote).mockResolvedValue({
+    vi.mocked(getGitHubRepoFromRemote).mockReturnValue({
       owner: 'test-owner',
       repo: 'test-repo',
     });
@@ -216,9 +216,9 @@ describe('CLI', () => {
   describe('error handling', () => {
     it('should handle git remote error and exit with 1', async () => {
       process.argv = ['node', 'cli.js'];
-      vi.mocked(getGitHubRepoFromRemote).mockRejectedValue(
-        new Error('No git remotes found. Make sure you are in a git repository.'),
-      );
+      vi.mocked(getGitHubRepoFromRemote).mockImplementation(() => {
+        throw new Error('No git remotes found. Make sure you are in a git repository.');
+      });
 
       const exitCode = await main();
 
