@@ -25,6 +25,12 @@
   "bin": {
     "gh-codeql-report": "./dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "preferGlobal": true,
   "scripts": {
     "build": "tsc",
@@ -39,7 +45,6 @@
     "release:major": "npm version major -m 'chore: release v%s' && git push origin main --follow-tags"
   },
   "dependencies": {
-    "@types/yargs": "^17.0.33",
     "node-sarif-builder": "^5.0.0",
     "octokit": "^5.0.3",
     "yargs": "^18.0.0"
@@ -47,6 +52,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
     "@types/node": "^26.1.0",
+    "@types/yargs": "^17.0.35",
     "@vitest/coverage-v8": "^5.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.0",
