@@ -250,7 +250,7 @@ describe('Formatters', () => {
 
   describe('formatAsSARIF', () => {
     it('should format alerts as valid SARIF with default (medium) detail', () => {
-      const result = formatAsSARIF([mockAlert], 'owner/repo');
+      const result = formatAsSARIF([mockAlert]);
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('$schema');
       expect(parsed).toHaveProperty('version');
@@ -258,42 +258,37 @@ describe('Formatters', () => {
     });
 
     it('should format with minimum detail', () => {
-      const result = formatAsSARIF([mockAlert], 'owner/repo', 'minimum');
+      const result = formatAsSARIF([mockAlert], 'minimum');
       expect(() => JSON.parse(result)).not.toThrow();
     });
 
     it('should format with full detail (includes tool version)', () => {
-      const result = formatAsSARIF([mockAlert], 'owner/repo', 'full');
+      const result = formatAsSARIF([mockAlert], 'full');
       const parsed = JSON.parse(result);
       expect(parsed.runs[0].tool.driver.version).toBe('2.0.0');
     });
 
-    it('should format with raw detail (returns original JSON)', () => {
-      const result = formatAsSARIF([mockAlert], 'owner/repo', 'raw');
-      const parsed = JSON.parse(result);
-      expect(Array.isArray(parsed)).toBe(true);
-      expect(parsed[0]).toHaveProperty('most_recent_instance');
-      expect(parsed[0]).toHaveProperty('tool');
+    it('should refuse raw detail, which is not SARIF', () => {
+      expect(() => formatAsSARIF([mockAlert], 'raw')).toThrow('raw detail is not valid SARIF');
     });
 
-    it('should map medium severity to warning level', () => {
-      const mediumAlert = { ...mockAlert, rule: { ...mockAlert.rule, severity: 'medium' } };
-      const result = formatAsSARIF([mediumAlert], 'owner/repo');
-      const parsed = JSON.parse(result);
-      expect(parsed.runs[0].results[0].level).toBe('warning');
+    it.each([
+      ['error', 'error'],
+      ['warning', 'warning'],
+      ['note', 'note'],
+      ['none', 'note'],
+    ])('should map %s severity to %s level', (severity, level) => {
+      const alert = { ...mockAlert, rule: { ...mockAlert.rule, severity } } as CodeQLAlert;
+      const parsed = JSON.parse(formatAsSARIF([alert]));
+      expect(parsed.runs[0].results[0].level).toBe(level);
     });
 
-    it('should map warning severity to warning level', () => {
-      const warningAlert = { ...mockAlert, rule: { ...mockAlert.rule, severity: 'warning' } };
-      const result = formatAsSARIF([warningAlert], 'owner/repo');
-      const parsed = JSON.parse(result);
-      expect(parsed.runs[0].results[0].level).toBe('warning');
-    });
-
-    it('should map unknown severity to note level', () => {
-      const lowAlert = { ...mockAlert, rule: { ...mockAlert.rule, severity: 'low' } };
-      const result = formatAsSARIF([lowAlert], 'owner/repo');
-      const parsed = JSON.parse(result);
+    it('should map a null severity to note level instead of crashing', () => {
+      const alert = {
+        ...mockAlert,
+        rule: { ...mockAlert.rule, severity: null },
+      } as unknown as CodeQLAlert;
+      const parsed = JSON.parse(formatAsSARIF([alert]));
       expect(parsed.runs[0].results[0].level).toBe('note');
     });
   });

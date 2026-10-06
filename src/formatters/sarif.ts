@@ -10,15 +10,12 @@ import {
 
 /**
  * Format alerts as SARIF (Static Analysis Results Interchange Format)
+ * Throws for `raw`: the unprocessed API response is not SARIF, and writing it to a
+ * .sarif file silently produced output SARIF consumers reject.
  */
-export function formatAsSARIF(
-  alerts: CodeQLAlert[],
-  _repoName: string,
-  detailLevel: DetailLevel = 'medium',
-): string {
-  // For raw format, return alerts as JSON (SARIF doesn't make sense for raw)
+export function formatAsSARIF(alerts: CodeQLAlert[], detailLevel: DetailLevel = 'medium'): string {
   if (detailLevel === 'raw') {
-    return JSON.stringify(alerts, null, 2);
+    throw new Error('raw detail is not valid SARIF; use the JSON formatter');
   }
 
   const sarifBuilder = new SarifBuilder();
@@ -65,13 +62,12 @@ export function formatAsSARIF(
   return sarifBuilder.buildSarifJsonString();
 }
 
+/** Map the API's rule.severity (none | note | warning | error) to a SARIF level. */
 function mapSeverityToLevel(severity: string): 'error' | 'warning' | 'note' {
-  switch (severity.toLowerCase()) {
+  switch (severity) {
     case 'error':
-    case 'critical':
       return 'error';
     case 'warning':
-    case 'medium':
       return 'warning';
     default:
       return 'note';

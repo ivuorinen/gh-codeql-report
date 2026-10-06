@@ -165,6 +165,7 @@ Complete information:
 
 ### Raw
 Original API response without processing. Useful for debugging or custom processing.
+Not available with `--format sarif`, since the raw response is not SARIF.
 
 ## Exit Codes
 

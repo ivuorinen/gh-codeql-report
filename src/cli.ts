@@ -55,6 +55,12 @@ export async function main(): Promise<number> {
     .parse()) as Arguments;
 
   try {
+    if (argv.format === 'sarif' && argv.detail === 'raw') {
+      throw new Error(
+        '--detail raw is not valid SARIF; use --format json for the raw API response',
+      );
+    }
+
     // Get GitHub token
     console.log('🔐 Authenticating with GitHub...');
     const token = getGitHubToken();
@@ -86,7 +92,7 @@ export async function main(): Promise<number> {
         content = formatAsJSON(alerts, argv.detail);
         break;
       case 'sarif':
-        content = formatAsSARIF(alerts, repoName, argv.detail);
+        content = formatAsSARIF(alerts, argv.detail);
         break;
       case 'txt':
         content = formatAsText(alerts, argv.detail);

@@ -119,7 +119,7 @@ describe('CLI', () => {
       const exitCode = await main();
       expect(exitCode).toBe(0);
 
-      expect(formatAsSARIF).toHaveBeenCalledWith([mockAlert], 'test-owner/test-repo', 'medium');
+      expect(formatAsSARIF).toHaveBeenCalledWith([mockAlert], 'medium');
       expect(writeFile).toHaveBeenCalledWith(
         expect.stringMatching(/code-scanning-report-.*\.sarif$/),
         '{"mock":"sarif"}',
@@ -226,6 +226,19 @@ describe('CLI', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '❌ Error: No git remotes found. Make sure you are in a git repository.',
       );
+    });
+
+    it('should reject sarif with raw detail before any API work', async () => {
+      process.argv = ['node', 'cli.js', '--format', 'sarif', '--detail', 'raw'];
+
+      const exitCode = await main();
+
+      expect(exitCode).toBe(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--detail raw is not valid SARIF'),
+      );
+      expect(getGitHubToken).not.toHaveBeenCalled();
+      expect(writeFile).not.toHaveBeenCalled();
     });
 
     it('should handle authentication error', async () => {
