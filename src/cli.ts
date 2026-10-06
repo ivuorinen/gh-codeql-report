@@ -123,11 +123,7 @@ export async function main(): Promise<number> {
     }
 
     // Generate output filename
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, '-')
-      .replace(/T/, '-')
-      .split('.')[0];
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace(/T/, '-');
     const outputPath = argv.output || `code-scanning-report-${timestamp}.${argv.format}`;
 
     // Write to file
