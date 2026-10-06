@@ -162,6 +162,20 @@ describe('Formatters', () => {
       expect(result).toContain('Description:');
       expect(result).toContain('Columns:');
       expect(result).toContain('Commit:');
+      expect(result).toContain('Reference: refs/heads/main');
+      expect(result).toContain('Analysis Key: test-analysis');
+      expect(result).toContain('Category: security');
+      expect(result).toContain('Tool: CodeQL 2.0.0');
+    });
+
+    it('should include help text only in full detail', () => {
+      const alertWithHelp = {
+        ...mockAlert,
+        rule: { ...mockAlert.rule, help: 'Use parameterized queries.' },
+      } as CodeQLAlert;
+      expect(formatAsText([alertWithHelp], 'full')).toContain('Use parameterized queries.');
+      expect(formatAsText([alertWithHelp], 'medium')).not.toContain('Use parameterized queries.');
+      expect(formatAsText([alertWithHelp], 'medium')).not.toContain('Reference:');
     });
 
     it('should handle empty array', () => {
@@ -247,6 +261,19 @@ describe('Formatters', () => {
       const result = formatAsMarkdown([mockAlert], 'owner/repo', 'full');
       expect(result).toContain('**Detail Level:** full');
       expect(result).toContain('**Reference:**');
+      expect(result).toContain('- **Analysis Key:** test-analysis');
+      expect(result).toContain('- **Category:** security');
+      expect(result).toContain('- **Tool:** CodeQL 2.0.0');
+    });
+
+    it('should render a Help section in full detail when rule.help is present', () => {
+      const alertWithHelp = {
+        ...mockAlert,
+        rule: { ...mockAlert.rule, help: 'Use parameterized queries.' },
+      } as CodeQLAlert;
+      const result = formatAsMarkdown([alertWithHelp], 'owner/repo', 'full');
+      expect(result).toContain('#### Help');
+      expect(result).toContain('Use parameterized queries.');
     });
 
     it('should count a null severity as none instead of crashing', () => {

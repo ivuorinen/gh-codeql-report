@@ -64,6 +64,20 @@ export function formatAsText(alerts: CodeQLAlert[], detailLevel: DetailLevel = '
       lines.push(`State: ${flatAlert.state}`);
     }
 
+    // Analysis metadata and help only in full
+    if ('ref' in flatAlert) {
+      lines.push(`Reference: ${flatAlert.ref}`);
+      lines.push(`Analysis Key: ${flatAlert.analysis_key}`);
+      lines.push(`Category: ${flatAlert.category}`);
+      lines.push(`Tool: ${flatAlert.tool_name} ${flatAlert.tool_version}`);
+
+      if (flatAlert.help_text) {
+        lines.push('');
+        lines.push('Help:');
+        lines.push(flatAlert.help_text);
+      }
+    }
+
     lines.push(`${'-'.repeat(80)}\n`);
   }
 
