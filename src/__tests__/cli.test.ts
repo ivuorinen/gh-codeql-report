@@ -22,7 +22,8 @@ vi.mock('../formatters/text.js');
 vi.mock('../formatters/markdown.js');
 vi.mock('../formatters/sarif.js');
 
-const mockAlert: CodeQLAlert = {
+// Partial fixture: only the fields the code reads, not the full API schema
+const mockAlert = {
   number: 1,
   rule: {
     id: 'js/sql-injection',
@@ -51,7 +52,7 @@ const mockAlert: CodeQLAlert = {
     name: 'CodeQL',
     version: '2.0.0',
   },
-};
+} as unknown as CodeQLAlert;
 
 describe('CLI', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
@@ -195,6 +196,19 @@ describe('CLI', () => {
       expect(exitCode).toBe(0);
 
       expect(formatAsJSON).toHaveBeenCalledWith([mockAlert], 'raw');
+    });
+
+    it('should pass the detail level to the alert fetch', async () => {
+      process.argv = ['node', 'cli.js', '--detail', 'minimum'];
+      vi.mocked(fetchAllAlertsWithDetails).mockResolvedValue([mockAlert]);
+
+      await main();
+
+      expect(fetchAllAlertsWithDetails).toHaveBeenCalledWith(
+        expect.anything(),
+        { owner: 'test-owner', repo: 'test-repo' },
+        'minimum',
+      );
     });
   });
 

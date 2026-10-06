@@ -23,11 +23,7 @@ export function formatAsSARIF(alerts: CodeQLAlert[], detailLevel: DetailLevel = 
   // Tool version only available in full mode
   let toolVersion = '1.0.0';
   if (detailLevel === 'full' && alerts.length > 0) {
-    const fullAlert = filterAlertByDetail(alerts[0], 'full');
-    /* v8 ignore next 3 -- `filterAlertByDetail(_, 'full')` always sets tool_version; the guard only narrows the return type */
-    if ('tool_version' in fullAlert) {
-      toolVersion = fullAlert.tool_version;
-    }
+    toolVersion = alerts[0].tool.version ?? toolVersion;
   }
 
   const runBuilder = new SarifRunBuilder().initSimple({
@@ -41,16 +37,16 @@ export function formatAsSARIF(alerts: CodeQLAlert[], detailLevel: DetailLevel = 
     const flatAlert = filtered as MinimumAlert | MediumAlert | FullAlert;
     const result = new SarifResultBuilder();
 
-    // SARIF requires certain minimum fields
-    // For minimum level, we use line numbers but set column to 1 if not available
-    const startColumn = 'start_column' in flatAlert ? flatAlert.start_column : 1;
+    // SARIF regions are 1-based and the builder throws on 0, so a missing line or
+    // column (minimum level, or an alert without a location) falls back to 1
+    const startColumn = ('start_column' in flatAlert && flatAlert.start_column) || 1;
 
     result.initSimple({
       ruleId: flatAlert.rule_id,
       level: mapSeverityToLevel(flatAlert.severity),
       messageText: flatAlert.message,
       fileUri: flatAlert.file_path,
-      startLine: flatAlert.start_line,
+      startLine: flatAlert.start_line || 1,
       startColumn,
     });
 

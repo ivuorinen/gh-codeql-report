@@ -5,7 +5,8 @@ import { formatAsSARIF } from '../formatters/sarif.js';
 import { formatAsText } from '../formatters/text.js';
 import type { CodeQLAlert } from '../lib/codeql.js';
 
-const mockAlert: CodeQLAlert = {
+// Partial fixture: only the fields the code reads, not the full API schema
+const mockAlert = {
   number: 1,
   rule: {
     id: 'js/sql-injection',
@@ -34,7 +35,7 @@ const mockAlert: CodeQLAlert = {
     name: 'CodeQL',
     version: '2.0.0',
   },
-};
+} as unknown as CodeQLAlert;
 
 describe('Formatters', () => {
   describe('formatAsJSON', () => {
@@ -75,15 +76,48 @@ describe('Formatters', () => {
       expect(parsed[0]).not.toHaveProperty('tool'); // Nested structure removed
     });
 
-    it('should include help_text in full detail when available', () => {
+    it('should include help_text from rule.help in full detail when available', () => {
+      // The single-alert endpoint returns help on the rule, not the alert
       const alertWithHelp = {
         ...mockAlert,
-        help: 'This is a helpful guide on how to fix this issue.',
-      };
+        rule: { ...mockAlert.rule, help: 'This is a helpful guide on how to fix this issue.' },
+      } as CodeQLAlert;
       const result = formatAsJSON([alertWithHelp], 'full');
       const parsed = JSON.parse(result);
       expect(parsed[0]).toHaveProperty('help_text');
       expect(parsed[0].help_text).toBe('This is a helpful guide on how to fix this issue.');
+    });
+
+    it('should default every nullable or missing API field instead of emitting null', () => {
+      // Shape the API may legally return: nullable rule fields, no location, no message
+      const sparse = {
+        number: 9,
+        rule: { id: null, severity: null },
+        most_recent_instance: {},
+        tool: { version: null },
+      } as unknown as CodeQLAlert;
+      const [full] = JSON.parse(formatAsJSON([sparse], 'full'));
+      expect(full).toEqual({
+        number: 9,
+        rule_id: '',
+        rule_name: '',
+        severity: 'none',
+        message: '',
+        file_path: '',
+        start_line: 0,
+        end_line: 0,
+        commit_sha: '',
+        rule_description: '',
+        start_column: 0,
+        end_column: 0,
+        state: '',
+        ref: '',
+        analysis_key: '',
+        category: '',
+        tool_name: '',
+        tool_version: '',
+      });
+      expect(JSON.parse(formatAsSARIF([sparse], 'full')).runs[0].tool.driver.version).toBe('1.0.0');
     });
 
     it('should format alerts with raw detail (original structure)', () => {
@@ -213,6 +247,16 @@ describe('Formatters', () => {
       const result = formatAsMarkdown([mockAlert], 'owner/repo', 'full');
       expect(result).toContain('**Detail Level:** full');
       expect(result).toContain('**Reference:**');
+    });
+
+    it('should count a null severity as none instead of crashing', () => {
+      const nullSeverity = {
+        ...mockAlert,
+        rule: { ...mockAlert.rule, severity: null },
+      } as unknown as CodeQLAlert;
+      const result = formatAsMarkdown([nullSeverity], 'owner/repo');
+      expect(result).toContain('| none     | 1     |');
+      expect(result).toContain('**Severity:** none');
     });
 
     it('should include severity summary table', () => {

@@ -70,7 +70,7 @@ export function formatAsMarkdown(
 
   const severityCounts = alerts.reduce(
     (acc, alert) => {
-      const severity = alert.rule.severity.toLowerCase();
+      const severity = alert.rule.severity ?? 'none';
       acc[severity] = (acc[severity] || 0) + 1;
       return acc;
     },

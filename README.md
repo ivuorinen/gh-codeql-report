@@ -163,6 +163,8 @@ Complete information:
 - Tool name and version
 - Help text (if available)
 
+Full and raw detail make one extra API request per alert to fetch the rule help text.
+
 ### Raw
 Original API response without processing. Useful for debugging or custom processing.
 Not available with `--format sarif`, since the raw response is not SARIF.

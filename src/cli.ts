@@ -73,7 +73,7 @@ export async function main(): Promise<number> {
 
     // Fetch CodeQL alerts
     console.log('🔍 Fetching CodeQL alerts...');
-    const alerts = await fetchAllAlertsWithDetails(octokit, repo);
+    const alerts = await fetchAllAlertsWithDetails(octokit, repo, argv.detail);
 
     if (alerts.length === 0) {
       console.log('🎉 No CodeQL alerts found! Your repository is clean!');
