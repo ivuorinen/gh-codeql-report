@@ -158,8 +158,14 @@ export function isMainModule(argv1: string | undefined, moduleUrl: string): bool
 
 /* v8 ignore start -- module bootstrap, only runs when executed as the CLI entrypoint (covered by bin.test.ts in a child process) */
 if (isMainModule(process.argv[1], import.meta.url)) {
-  main().then((exitCode) => {
-    process.exit(exitCode);
-  });
+  // main() reports its own errors; the rejection handler covers anything thrown
+  // outside its try block (argument parsing) so it still exits non-zero.
+  main().then(
+    (exitCode) => process.exit(exitCode),
+    (error: unknown) => {
+      console.error('❌ An unexpected error occurred', error);
+      process.exit(1);
+    },
+  );
 }
 /* v8 ignore stop */
