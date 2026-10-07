@@ -48,9 +48,9 @@ function mockOctokit(list: CodeQLAlert[]) {
     rest: {
       codeScanning: {
         listAlertsForRepo,
-        getAlert: vi.fn(async ({ alert_number }: { alert_number: number }) => ({
-          data: { ...mockAlert, number: alert_number },
-        })),
+        getAlert: vi.fn(({ alert_number }: { alert_number: number }) =>
+          Promise.resolve({ data: { ...mockAlert, number: alert_number } }),
+        ),
       },
     },
   } as unknown as Octokit;

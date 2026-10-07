@@ -42,7 +42,7 @@ describe('CLI entrypoint through a bin symlink', () => {
     symlinkSync(cliSource, link);
     const { version } = JSON.parse(
       readFileSync(resolve(import.meta.dirname, '../../package.json'), 'utf-8'),
-    );
+    ) as { version: string };
 
     // Absolute loader URL: the child runs from the temp dir (outside this package on
     // purpose, so `--version` cannot pick up this repo's package.json by accident).
