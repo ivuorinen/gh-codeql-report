@@ -42,6 +42,30 @@ describe('parseGitHubUrl', () => {
     const result = parseGitHubUrl('https://github.com/my-org_name/my-repo_name.git');
     expect(result).toEqual({ owner: 'my-org_name', repo: 'my-repo_name' });
   });
+
+  it('should parse the owner/name shorthand', () => {
+    expect(parseGitHubUrl('owner/repo')).toEqual({ owner: 'owner', repo: 'repo' });
+  });
+
+  it('should parse ssh:// URLs with a port and URLs with a trailing slash', () => {
+    expect(parseGitHubUrl('ssh://git@github.com:22/owner/repo.git')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+    expect(parseGitHubUrl('https://github.com/owner/repo/')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  it.each([
+    'https://notgithub.com/owner/repo',
+    'https://evil.com/github.com/owner/repo',
+    'git@notgithub.com:owner/repo.git',
+    'https://github.com/owner/repo/tree/main',
+  ])('should reject %s instead of reporting on another repository', (url) => {
+    expect(parseGitHubUrl(url)).toBeNull();
+  });
 });
 
 describe('getGitHubRepoFromRemote', () => {

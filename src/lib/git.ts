@@ -5,25 +5,34 @@ export interface GitHubRepo {
   repo: string;
 }
 
+const toRepo = (owner: string, repo: string): GitHubRepo => ({
+  owner,
+  repo: repo.replace(/\.git$/, ''),
+});
+
 /**
- * Extract GitHub owner and repository name from git remote URL
+ * Extract GitHub owner and repository name from a git remote URL or `owner/name`.
+ *
+ * Parses by form rather than searching for a `github.com` substring, which
+ * accepted `https://notgithub.com/o/r` and `https://evil.com/github.com/o/r`
+ * as `o/r` and reported on an unrelated GitHub repository.
  */
 export function parseGitHubUrl(url: string): GitHubRepo | null {
-  // Match various GitHub URL formats:
-  // - https://github.com/owner/repo.git
-  // - git@github.com:owner/repo.git
-  // - https://github.com/owner/repo
-  // - git://github.com/owner/repo.git
-  const patterns = [/github\.com[:/]([^/]+)\/([^/]+?)(\.git)?$/, /^([^/]+)\/([^/]+)(\.git)?$/];
+  // owner/name shorthand (the --repo form)
+  const shorthand = url.match(/^([^/:@\s]+)\/([^/:@\s]+)$/);
+  if (shorthand) return toRepo(shorthand[1], shorthand[2]);
 
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return {
-        owner: match[1],
-        repo: match[2].replace(/\.git$/, ''),
-      };
-    }
+  // scp-like SSH: git@github.com:owner/name.git
+  const scp = url.match(/^[^@/\s]+@github\.com:([^/]+)\/([^/]+)$/);
+  if (scp) return toRepo(scp[1], scp[2]);
+
+  // https://, ssh://, git:// — the host must be exactly github.com
+  try {
+    const { hostname, pathname } = new URL(url);
+    const parts = pathname.split('/').filter(Boolean);
+    if (hostname === 'github.com' && parts.length === 2) return toRepo(parts[0], parts[1]);
+  } catch {
+    // not a URL
   }
 
   return null;
