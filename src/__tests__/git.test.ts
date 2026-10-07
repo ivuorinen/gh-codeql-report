@@ -4,11 +4,20 @@ import { getGitHubRepoFromRemote, parseGitHubUrl } from '../lib/git.js';
 
 vi.mock('node:child_process');
 
-/** Fake git: answers `git remote` with `remotes` and `git remote get-url <name>` from `urls`. */
-function fakeGit(remotes: string, urls: Record<string, string>) {
+/**
+ * Fake git: answers `git remote` with `remotes` and `git remote get-url [--push] <name>`
+ * from `urls`/`pushUrls`. Like real git, a remote with no fetch URL reports its own name.
+ */
+function fakeGit(
+  remotes: string,
+  urls: Record<string, string>,
+  pushUrls: Record<string, string> = {},
+) {
   vi.mocked(execFileSync).mockImplementation(((_file: string, args: string[]) => {
     if (args.length === 1) return `${remotes}\n`;
-    return `${urls[args[2]]}\n`;
+    const name = args[args.length - 1];
+    const url = args[2] === '--push' ? pushUrls[name] : urls[name];
+    return `${url ?? name}\n`;
   }) as never);
 }
 
@@ -91,6 +100,17 @@ describe('getGitHubRepoFromRemote', () => {
     fakeGit('upstream', { upstream: 'git@github.com:other/repo.git' });
 
     expect(getGitHubRepoFromRemote()).toEqual({ owner: 'other', repo: 'repo' });
+  });
+
+  it('should fall back to the push URL when the remote has no fetch URL', () => {
+    fakeGit('origin', {}, { origin: 'git@github.com:owner/repo.git' });
+
+    expect(getGitHubRepoFromRemote()).toEqual({ owner: 'owner', repo: 'repo' });
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'get-url', '--push', 'origin'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    );
   });
 
   it('should throw error if no remotes found', () => {

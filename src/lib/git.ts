@@ -66,7 +66,10 @@ export function getGitHubRepoFromRemote(cwd?: string): GitHubRepo {
   // Try origin first, then fall back to the first remote
   const remote = remotes.includes('origin') ? 'origin' : remotes[0];
   const remoteUrl = git(['remote', 'get-url', remote], cwd);
-  const repoInfo = parseGitHubUrl(remoteUrl);
+  // A remote with only remote.<name>.pushurl has no fetch URL, and `get-url`
+  // then prints the remote's name instead of failing; fall back to the push URL.
+  const repoInfo =
+    parseGitHubUrl(remoteUrl) ?? parseGitHubUrl(git(['remote', 'get-url', '--push', remote], cwd));
 
   if (!repoInfo) {
     throw new Error(`Unable to parse GitHub repository from remote URL: ${remoteUrl}`);
