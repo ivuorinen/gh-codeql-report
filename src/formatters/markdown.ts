@@ -3,6 +3,7 @@ import {
   type DetailLevel,
   type FullAlert,
   filterAlertByDetail,
+  fullDetailFields,
   type MediumAlert,
   type MinimumAlert,
 } from '../lib/types.js';
@@ -145,16 +146,12 @@ export function formatAsMarkdown(
 
     // Analysis metadata and help only in full
     if ('ref' in flatAlert) {
-      lines.push(`- **Reference:** ${flatAlert.ref}`);
-      lines.push(`- **Analysis Key:** ${flatAlert.analysis_key}`);
-      lines.push(`- **Category:** ${flatAlert.category}`);
-      lines.push(`- **Tool:** ${flatAlert.tool_name} ${flatAlert.tool_version}`);
+      lines.push(
+        ...fullDetailFields(flatAlert).map(([label, value]) => `- **${label}:** ${value}`),
+      );
 
       if (flatAlert.help_text) {
-        lines.push('');
-        lines.push('#### Help');
-        lines.push('');
-        lines.push(flatAlert.help_text);
+        lines.push('', '#### Help', '', flatAlert.help_text);
       }
     }
 

@@ -41,6 +41,19 @@ export interface FullAlert extends MediumAlert {
 }
 
 /**
+ * Label/value pairs shown only at full detail. Shared by the text and markdown
+ * formatters so the two cannot drift apart; each applies its own line syntax.
+ */
+export function fullDetailFields(alert: FullAlert): [label: string, value: string][] {
+  return [
+    ['Reference', alert.ref],
+    ['Analysis Key', alert.analysis_key],
+    ['Category', alert.category],
+    ['Tool', `${alert.tool_name} ${alert.tool_version}`],
+  ];
+}
+
+/**
  * Filter alert data based on detail level
  * Returns flattened structure to reduce tokens, or raw CodeQLAlert for 'raw' level.
  * Nullable API fields are defaulted here (severity to 'none') so formatters never
