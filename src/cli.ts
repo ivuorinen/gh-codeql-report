@@ -150,6 +150,7 @@ export async function main(): Promise<number> {
 export function isMainModule(argv1: string | undefined, moduleUrl: string): boolean {
   if (!argv1) return false;
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- resolves this process's own script path; no file is read or written
     return realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
   } catch {
     return false;
