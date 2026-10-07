@@ -37,6 +37,15 @@ jobs:
       - name: Run biome lint
         run: npm run lint
 
+      - name: Check tag matches package.json version
+        # A mismatched tag otherwise creates a GitHub release while npm publish silently skips
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "v$PACKAGE_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version v$PACKAGE_VERSION"
+            exit 1
+          fi
+
   test:
     name: Test
     runs-on: ubuntu-latest

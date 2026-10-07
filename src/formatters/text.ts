@@ -3,6 +3,7 @@ import {
   type DetailLevel,
   type FullAlert,
   filterAlertByDetail,
+  fullDetailFields,
   type MediumAlert,
   type MinimumAlert,
 } from '../lib/types.js';
@@ -62,6 +63,15 @@ export function formatAsText(alerts: CodeQLAlert[], detailLevel: DetailLevel = '
     // State only in medium and full
     if ('state' in flatAlert) {
       lines.push(`State: ${flatAlert.state}`);
+    }
+
+    // Analysis metadata and help only in full
+    if ('ref' in flatAlert) {
+      lines.push(...fullDetailFields(flatAlert).map(([label, value]) => `${label}: ${value}`));
+
+      if (flatAlert.help_text) {
+        lines.push('', 'Help:', flatAlert.help_text);
+      }
     }
 
     lines.push(`${'-'.repeat(80)}\n`);

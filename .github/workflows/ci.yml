@@ -33,12 +33,15 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        # No lifecycle scripts: this job holds a persisted contents:write token, and biome needs none
+        run: npm ci --ignore-scripts
 
       - name: Run biome lint with auto-fix
         run: npm run lint:fix
 
       - name: Commit and push changes
+        # Fork PRs get a read-only token, so the push could only fail there
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         # zizmor: ignore[superfluous-actions] handles nothing-to-commit and bot identity cleanly
         uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
         with:
@@ -53,10 +56,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Default ref (the PR merge commit): `github.head_ref` resolved against this
+      # repo checks out the wrong branch, or none, for fork PRs.
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
           persist-credentials: false
 
       - name: Setup Node.js
@@ -88,7 +92,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
           persist-credentials: false
 
       - name: Setup Node.js

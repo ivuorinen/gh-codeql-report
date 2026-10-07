@@ -4,7 +4,7 @@ import type { CodeQLAlert } from '../lib/codeql.js';
 import { fetchAlertDetails, fetchAllAlertsWithDetails, fetchCodeQLAlerts } from '../lib/codeql.js';
 import type { GitHubRepo } from '../lib/git.js';
 
-const mockAlert: CodeQLAlert = {
+const mockAlert = {
   number: 1,
   rule: {
     id: 'js/sql-injection',
@@ -33,164 +33,97 @@ const mockAlert: CodeQLAlert = {
     name: 'CodeQL',
     version: '2.0.0',
   },
-};
+} as unknown as CodeQLAlert;
 
 const mockRepo: GitHubRepo = {
   owner: 'test-owner',
   repo: 'test-repo',
 };
 
+/** Octokit stub: paginate resolves to `list`, getAlert echoes the requested number. */
+function mockOctokit(list: CodeQLAlert[]) {
+  const listAlertsForRepo = vi.fn();
+  return {
+    paginate: vi.fn().mockResolvedValue(list),
+    rest: {
+      codeScanning: {
+        listAlertsForRepo,
+        getAlert: vi.fn(({ alert_number }: { alert_number: number }) =>
+          Promise.resolve({ data: { ...mockAlert, number: alert_number } }),
+        ),
+      },
+    },
+  } as unknown as Octokit;
+}
+
 describe('CodeQL API', () => {
   describe('fetchCodeQLAlerts', () => {
-    it('should stop pagination when empty page received', async () => {
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            listAlertsForRepo: vi
-              .fn()
-              .mockResolvedValueOnce({
-                data: [mockAlert, { ...mockAlert, number: 2 }],
-              })
-              .mockResolvedValueOnce({
-                data: [],
-              }),
-          },
-        },
-      } as unknown as Octokit;
+    it('should paginate open CodeQL alerts only', async () => {
+      const octokit = mockOctokit([mockAlert]);
 
-      const alerts = await fetchCodeQLAlerts(mockOctokit, mockRepo);
-
-      expect(alerts).toHaveLength(2);
-      // Should stop on first call because result is less than perPage (100)
-      expect(mockOctokit.rest.codeScanning.listAlertsForRepo).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle single page of alerts', async () => {
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            listAlertsForRepo: vi.fn().mockResolvedValue({
-              data: [mockAlert],
-            }),
-          },
-        },
-      } as unknown as Octokit;
-
-      const alerts = await fetchCodeQLAlerts(mockOctokit, mockRepo);
+      const alerts = await fetchCodeQLAlerts(octokit, mockRepo);
 
       expect(alerts).toHaveLength(1);
-      expect(mockOctokit.rest.codeScanning.listAlertsForRepo).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle empty results', async () => {
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            listAlertsForRepo: vi.fn().mockResolvedValue({
-              data: [],
-            }),
-          },
-        },
-      } as unknown as Octokit;
-
-      const alerts = await fetchCodeQLAlerts(mockOctokit, mockRepo);
-
-      expect(alerts).toHaveLength(0);
-    });
-
-    it('should continue pagination until fewer than perPage results', async () => {
-      const mockAlerts = Array.from({ length: 100 }, (_, i) => ({ ...mockAlert, number: i + 1 }));
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            listAlertsForRepo: vi
-              .fn()
-              .mockResolvedValueOnce({
-                data: mockAlerts,
-              })
-              .mockResolvedValueOnce({
-                data: [{ ...mockAlert, number: 101 }],
-              }),
-          },
-        },
-      } as unknown as Octokit;
-
-      const alerts = await fetchCodeQLAlerts(mockOctokit, mockRepo);
-
-      expect(alerts).toHaveLength(101);
-      expect(mockOctokit.rest.codeScanning.listAlertsForRepo).toHaveBeenCalledTimes(2);
+      expect(octokit.paginate).toHaveBeenCalledWith(octokit.rest.codeScanning.listAlertsForRepo, {
+        owner: 'test-owner',
+        repo: 'test-repo',
+        state: 'open',
+        tool_name: 'CodeQL',
+        per_page: 100,
+      });
     });
   });
 
   describe('fetchAlertDetails', () => {
     it('should fetch details for a specific alert', async () => {
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            getAlert: vi.fn().mockResolvedValue({
-              data: mockAlert,
-            }),
-          },
-        },
-      } as unknown as Octokit;
+      const octokit = mockOctokit([]);
 
-      const alert = await fetchAlertDetails(mockOctokit, mockRepo, 1);
+      const alert = await fetchAlertDetails(octokit, mockRepo, 7);
 
-      expect(alert).toEqual(mockAlert);
-      expect(mockOctokit.rest.codeScanning.getAlert).toHaveBeenCalledWith({
+      expect(alert.number).toBe(7);
+      expect(octokit.rest.codeScanning.getAlert).toHaveBeenCalledWith({
         owner: 'test-owner',
         repo: 'test-repo',
-        alert_number: 1,
+        alert_number: 7,
       });
     });
   });
 
   describe('fetchAllAlertsWithDetails', () => {
-    it('should fetch all alerts and their details', async () => {
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            listAlertsForRepo: vi.fn().mockResolvedValue({
-              data: [
-                { ...mockAlert, number: 1 },
-                { ...mockAlert, number: 2 },
-              ],
-            }),
-            getAlert: vi
-              .fn()
-              .mockResolvedValueOnce({
-                data: { ...mockAlert, number: 1 },
-              })
-              .mockResolvedValueOnce({
-                data: { ...mockAlert, number: 2 },
-              }),
-          },
-        },
-      } as unknown as Octokit;
+    it.each(['full', 'raw'] as const)(
+      'should fetch per-alert details at %s level',
+      async (level) => {
+        const octokit = mockOctokit([
+          { ...mockAlert, number: 1 },
+          { ...mockAlert, number: 2 },
+        ]);
 
-      const alerts = await fetchAllAlertsWithDetails(mockOctokit, mockRepo);
+        const alerts = await fetchAllAlertsWithDetails(octokit, mockRepo, level);
 
-      expect(alerts).toHaveLength(2);
-      expect(mockOctokit.rest.codeScanning.listAlertsForRepo).toHaveBeenCalledTimes(1);
-      expect(mockOctokit.rest.codeScanning.getAlert).toHaveBeenCalledTimes(2);
-    });
+        expect(alerts.map((a) => a.number)).toEqual([1, 2]);
+        expect(octokit.rest.codeScanning.getAlert).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it.each(['minimum', 'medium'] as const)(
+      'should skip per-alert requests at %s level',
+      async (level) => {
+        const octokit = mockOctokit([mockAlert]);
+
+        const alerts = await fetchAllAlertsWithDetails(octokit, mockRepo, level);
+
+        expect(alerts).toEqual([mockAlert]);
+        expect(octokit.rest.codeScanning.getAlert).not.toHaveBeenCalled();
+      },
+    );
 
     it('should handle empty results', async () => {
-      const mockOctokit = {
-        rest: {
-          codeScanning: {
-            listAlertsForRepo: vi.fn().mockResolvedValue({
-              data: [],
-            }),
-            getAlert: vi.fn(),
-          },
-        },
-      } as unknown as Octokit;
+      const octokit = mockOctokit([]);
 
-      const alerts = await fetchAllAlertsWithDetails(mockOctokit, mockRepo);
+      const alerts = await fetchAllAlertsWithDetails(octokit, mockRepo);
 
       expect(alerts).toHaveLength(0);
-      expect(mockOctokit.rest.codeScanning.getAlert).not.toHaveBeenCalled();
+      expect(octokit.rest.codeScanning.getAlert).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { Octokit } from 'octokit';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../cli.js';
 import { formatAsJSON } from '../formatters/json.js';
 import { formatAsMarkdown } from '../formatters/markdown.js';
@@ -9,7 +9,7 @@ import { formatAsText } from '../formatters/text.js';
 import { getGitHubToken } from '../lib/auth.js';
 import type { CodeQLAlert } from '../lib/codeql.js';
 import { fetchAllAlertsWithDetails } from '../lib/codeql.js';
-import { getGitHubRepoFromRemote } from '../lib/git.js';
+import { getGitHubRepoFromRemote, parseGitHubUrl } from '../lib/git.js';
 
 // Mock all dependencies
 vi.mock('node:fs/promises');
@@ -22,7 +22,8 @@ vi.mock('../formatters/text.js');
 vi.mock('../formatters/markdown.js');
 vi.mock('../formatters/sarif.js');
 
-const mockAlert: CodeQLAlert = {
+// Partial fixture: only the fields the code reads, not the full API schema
+const mockAlert = {
   number: 1,
   rule: {
     id: 'js/sql-injection',
@@ -51,7 +52,7 @@ const mockAlert: CodeQLAlert = {
     name: 'CodeQL',
     version: '2.0.0',
   },
-};
+} as unknown as CodeQLAlert;
 
 describe('CLI', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
@@ -71,7 +72,7 @@ describe('CLI', () => {
 
     // Setup default mocks
     vi.mocked(getGitHubToken).mockReturnValue('test-token');
-    vi.mocked(getGitHubRepoFromRemote).mockResolvedValue({
+    vi.mocked(getGitHubRepoFromRemote).mockReturnValue({
       owner: 'test-owner',
       repo: 'test-repo',
     });
@@ -119,7 +120,7 @@ describe('CLI', () => {
       const exitCode = await main();
       expect(exitCode).toBe(0);
 
-      expect(formatAsSARIF).toHaveBeenCalledWith([mockAlert], 'test-owner/test-repo', 'medium');
+      expect(formatAsSARIF).toHaveBeenCalledWith([mockAlert], 'medium');
       expect(writeFile).toHaveBeenCalledWith(
         expect.stringMatching(/code-scanning-report-.*\.sarif$/),
         '{"mock":"sarif"}',
@@ -196,6 +197,49 @@ describe('CLI', () => {
 
       expect(formatAsJSON).toHaveBeenCalledWith([mockAlert], 'raw');
     });
+
+    it('should target --repo instead of the git remote', async () => {
+      process.argv = ['node', 'cli.js', '--repo', 'other/target'];
+      vi.mocked(parseGitHubUrl).mockReturnValue({ owner: 'other', repo: 'target' });
+      vi.mocked(fetchAllAlertsWithDetails).mockResolvedValue([mockAlert]);
+
+      const exitCode = await main();
+
+      expect(exitCode).toBe(0);
+      expect(parseGitHubUrl).toHaveBeenCalledWith('other/target');
+      expect(getGitHubRepoFromRemote).not.toHaveBeenCalled();
+      expect(fetchAllAlertsWithDetails).toHaveBeenCalledWith(
+        expect.anything(),
+        { owner: 'other', repo: 'target' },
+        'medium',
+      );
+    });
+
+    it('should fail on an unparseable --repo', async () => {
+      process.argv = ['node', 'cli.js', '--repo', 'nonsense'];
+      vi.mocked(parseGitHubUrl).mockReturnValue(null);
+
+      const exitCode = await main();
+
+      expect(exitCode).toBe(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Error: Unable to parse --repo "nonsense"; expected owner/name',
+      );
+      expect(fetchAllAlertsWithDetails).not.toHaveBeenCalled();
+    });
+
+    it('should pass the detail level to the alert fetch', async () => {
+      process.argv = ['node', 'cli.js', '--detail', 'minimum'];
+      vi.mocked(fetchAllAlertsWithDetails).mockResolvedValue([mockAlert]);
+
+      await main();
+
+      expect(fetchAllAlertsWithDetails).toHaveBeenCalledWith(
+        expect.anything(),
+        { owner: 'test-owner', repo: 'test-repo' },
+        'minimum',
+      );
+    });
   });
 
   describe('no alerts found (celebration)', () => {
@@ -216,9 +260,9 @@ describe('CLI', () => {
   describe('error handling', () => {
     it('should handle git remote error and exit with 1', async () => {
       process.argv = ['node', 'cli.js'];
-      vi.mocked(getGitHubRepoFromRemote).mockRejectedValue(
-        new Error('No git remotes found. Make sure you are in a git repository.'),
-      );
+      vi.mocked(getGitHubRepoFromRemote).mockImplementation(() => {
+        throw new Error('No git remotes found. Make sure you are in a git repository.');
+      });
 
       const exitCode = await main();
 
@@ -226,6 +270,19 @@ describe('CLI', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '❌ Error: No git remotes found. Make sure you are in a git repository.',
       );
+    });
+
+    it('should reject sarif with raw detail before any API work', async () => {
+      process.argv = ['node', 'cli.js', '--format', 'sarif', '--detail', 'raw'];
+
+      const exitCode = await main();
+
+      expect(exitCode).toBe(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--detail raw is not valid SARIF'),
+      );
+      expect(getGitHubToken).not.toHaveBeenCalled();
+      expect(writeFile).not.toHaveBeenCalled();
     });
 
     it('should handle authentication error', async () => {

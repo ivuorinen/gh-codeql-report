@@ -10,15 +10,12 @@ import {
 
 /**
  * Format alerts as SARIF (Static Analysis Results Interchange Format)
+ * Throws for `raw`: the unprocessed API response is not SARIF, and writing it to a
+ * .sarif file silently produced output SARIF consumers reject.
  */
-export function formatAsSARIF(
-  alerts: CodeQLAlert[],
-  _repoName: string,
-  detailLevel: DetailLevel = 'medium',
-): string {
-  // For raw format, return alerts as JSON (SARIF doesn't make sense for raw)
+export function formatAsSARIF(alerts: CodeQLAlert[], detailLevel: DetailLevel = 'medium'): string {
   if (detailLevel === 'raw') {
-    return JSON.stringify(alerts, null, 2);
+    throw new Error('raw detail is not valid SARIF; use the JSON formatter');
   }
 
   const sarifBuilder = new SarifBuilder();
@@ -26,11 +23,7 @@ export function formatAsSARIF(
   // Tool version only available in full mode
   let toolVersion = '1.0.0';
   if (detailLevel === 'full' && alerts.length > 0) {
-    const fullAlert = filterAlertByDetail(alerts[0], 'full');
-    /* v8 ignore next 3 -- `filterAlertByDetail(_, 'full')` always sets tool_version; the guard only narrows the return type */
-    if ('tool_version' in fullAlert) {
-      toolVersion = fullAlert.tool_version;
-    }
+    toolVersion = alerts[0].tool.version ?? toolVersion;
   }
 
   const runBuilder = new SarifRunBuilder().initSimple({
@@ -44,16 +37,16 @@ export function formatAsSARIF(
     const flatAlert = filtered as MinimumAlert | MediumAlert | FullAlert;
     const result = new SarifResultBuilder();
 
-    // SARIF requires certain minimum fields
-    // For minimum level, we use line numbers but set column to 1 if not available
-    const startColumn = 'start_column' in flatAlert ? flatAlert.start_column : 1;
+    // SARIF regions are 1-based and the builder throws on 0, so a missing line or
+    // column (minimum level, or an alert without a location) falls back to 1
+    const startColumn = ('start_column' in flatAlert && flatAlert.start_column) || 1;
 
     result.initSimple({
       ruleId: flatAlert.rule_id,
       level: mapSeverityToLevel(flatAlert.severity),
       messageText: flatAlert.message,
       fileUri: flatAlert.file_path,
-      startLine: flatAlert.start_line,
+      startLine: flatAlert.start_line || 1,
       startColumn,
     });
 
@@ -65,13 +58,12 @@ export function formatAsSARIF(
   return sarifBuilder.buildSarifJsonString();
 }
 
+/** Map the API's rule.severity (none | note | warning | error) to a SARIF level. */
 function mapSeverityToLevel(severity: string): 'error' | 'warning' | 'note' {
-  switch (severity.toLowerCase()) {
+  switch (severity) {
     case 'error':
-    case 'critical':
       return 'error';
     case 'warning':
-    case 'medium':
       return 'warning';
     default:
       return 'note';

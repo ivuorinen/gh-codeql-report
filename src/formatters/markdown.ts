@@ -3,6 +3,7 @@ import {
   type DetailLevel,
   type FullAlert,
   filterAlertByDetail,
+  fullDetailFields,
   type MediumAlert,
   type MinimumAlert,
 } from '../lib/types.js';
@@ -70,7 +71,7 @@ export function formatAsMarkdown(
 
   const severityCounts = alerts.reduce(
     (acc, alert) => {
-      const severity = alert.rule.severity.toLowerCase();
+      const severity = alert.rule.severity ?? 'none';
       acc[severity] = (acc[severity] || 0) + 1;
       return acc;
     },
@@ -143,9 +144,15 @@ export function formatAsMarkdown(
       lines.push(`- **State:** ${flatAlert.state}`);
     }
 
-    // Reference only in full
+    // Analysis metadata and help only in full
     if ('ref' in flatAlert) {
-      lines.push(`- **Reference:** ${flatAlert.ref}`);
+      lines.push(
+        ...fullDetailFields(flatAlert).map(([label, value]) => `- **${label}:** ${value}`),
+      );
+
+      if (flatAlert.help_text) {
+        lines.push('', '#### Help', '', flatAlert.help_text);
+      }
     }
 
     lines.push('');

@@ -46,10 +46,11 @@ npm run build
 
 ## Prerequisites
 
-- **Node.js** 18+ (ES Modules support)
+- **Node.js** 22+
 - **GitHub repository** with CodeQL scanning enabled
 - **Authentication**: Either:
-  - `GITHUB_TOKEN` environment variable with `security_events:read` scope, or
+  - `GITHUB_TOKEN` environment variable with the `security_events` scope (classic token) or
+    "Code scanning alerts: read" permission (fine-grained token), or
   - GitHub CLI (`gh`) authenticated
 
 ## Authentication
@@ -96,6 +97,7 @@ gh-codeql-report [options]
 | `--format`  | `-f`  | Output format: `json`, `sarif`, `txt`, `md`      | `json`                                      |
 | `--detail`  | `-d`  | Detail level: `minimum`, `medium`, `full`, `raw` | `medium`                                    |
 | `--output`  | `-o`  | Output file path                                 | `code-scanning-report-[timestamp].[format]` |
+| `--repo`    | `-r`  | Repository as `owner/name` or GitHub URL         | git remote of the current directory         |
 | `--help`    | `-h`  | Show help                                        |                                             |
 | `--version` | `-v`  | Show version                                     |                                             |
 
@@ -153,7 +155,7 @@ Balanced detail for most use cases:
 - Everything from minimum level
 - Rule description
 - Column numbers
-- Alert state (open, dismissed, etc.)
+- Alert state (always `open`: only open alerts are fetched)
 
 ### Full
 Complete information:
@@ -163,8 +165,11 @@ Complete information:
 - Tool name and version
 - Help text (if available)
 
+Full and raw detail make one extra API request per alert to fetch the rule help text.
+
 ### Raw
 Original API response without processing. Useful for debugging or custom processing.
+Not available with `--format sarif`, since the raw response is not SARIF.
 
 ## Exit Codes
 
@@ -190,8 +195,11 @@ Compiles TypeScript to `dist/` directory.
 ### Run Locally
 
 ```bash
-# Using ts-node
-npx tsx src/cli.ts
+# From source, against this repository
+npm run dev
+
+# From source, against another repository (args after --)
+npm run dev -- --repo owner/name --format md --detail full
 
 # Using compiled version
 node dist/cli.js
@@ -215,8 +223,6 @@ npm run format
 ```bash
 # Run all tests with coverage
 npm test
-
-# Current coverage: 98.91%
 ```
 
 The test suite includes:

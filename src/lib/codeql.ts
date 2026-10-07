@@ -1,76 +1,34 @@
 import type { Octokit } from 'octokit';
 import type { GitHubRepo } from './git.js';
+import type { DetailLevel } from './types.js';
 
-export interface CodeQLAlert {
-  number: number;
-  rule: {
-    id: string;
-    severity: string;
-    description: string;
-    name: string;
-  };
-  most_recent_instance: {
-    ref: string;
-    analysis_key: string;
-    category: string;
-    state: string;
-    commit_sha: string;
-    message: {
-      text: string;
-    };
-    location: {
-      path: string;
-      start_line: number;
-      end_line: number;
-      start_column: number;
-      end_column: number;
-    };
-  };
-  help?: string;
-  tool: {
-    name: string;
-    version: string;
-  };
-}
+type CodeScanning = Octokit['rest']['codeScanning'];
 
 /**
- * Fetch all open CodeQL alerts for a repository with pagination
+ * Alert as returned by the list endpoint: rule summary only, no `rule.help`.
+ * Derived from octokit's own typings so nullable API fields stay nullable.
  */
-export async function fetchCodeQLAlerts(
-  octokit: Octokit,
-  repo: GitHubRepo,
-): Promise<CodeQLAlert[]> {
-  const alerts: CodeQLAlert[] = [];
-  let page = 1;
-  const perPage = 100;
+export type CodeQLAlertItem = Awaited<
+  ReturnType<CodeScanning['listAlertsForRepo']>
+>['data'][number];
 
-  while (true) {
-    const response = await octokit.rest.codeScanning.listAlertsForRepo({
-      owner: repo.owner,
-      repo: repo.repo,
-      state: 'open',
-      per_page: perPage,
-      page,
-    });
+/** Alert as returned by the single-alert endpoint: full rule, including `rule.help`. */
+export type CodeQLAlertDetail = Awaited<ReturnType<CodeScanning['getAlert']>>['data'];
 
-    if (response.data.length === 0) {
-      break;
-    }
+export type CodeQLAlert = CodeQLAlertItem | CodeQLAlertDetail;
 
-    // Collect alert numbers for detailed fetch
-    for (const alert of response.data) {
-      alerts.push(alert as CodeQLAlert);
-    }
-
-    // If we got fewer than perPage results, we're done
-    if (response.data.length < perPage) {
-      break;
-    }
-
-    page++;
-  }
-
-  return alerts;
+/**
+ * Fetch all open CodeQL alerts for a repository.
+ * `tool_name` keeps other code-scanning tools' SARIF uploads out of a CodeQL report.
+ */
+export function fetchCodeQLAlerts(octokit: Octokit, repo: GitHubRepo): Promise<CodeQLAlertItem[]> {
+  return octokit.paginate(octokit.rest.codeScanning.listAlertsForRepo, {
+    owner: repo.owner,
+    repo: repo.repo,
+    state: 'open',
+    tool_name: 'CodeQL',
+    per_page: 100,
+  });
 }
 
 /**
@@ -80,29 +38,31 @@ export async function fetchAlertDetails(
   octokit: Octokit,
   repo: GitHubRepo,
   alertNumber: number,
-): Promise<CodeQLAlert> {
+): Promise<CodeQLAlertDetail> {
   const response = await octokit.rest.codeScanning.getAlert({
     owner: repo.owner,
     repo: repo.repo,
     alert_number: alertNumber,
   });
 
-  return response.data as CodeQLAlert;
+  return response.data;
 }
 
 /**
- * Fetch all alerts with full details
+ * Fetch all alerts, with per-alert details only when the detail level uses them.
+ * Only `full` and `raw` output read fields the list endpoint omits (`rule.help`),
+ * so other levels skip the one-request-per-alert round trips.
  */
 export async function fetchAllAlertsWithDetails(
   octokit: Octokit,
   repo: GitHubRepo,
+  detail: DetailLevel = 'full',
 ): Promise<CodeQLAlert[]> {
   const alerts = await fetchCodeQLAlerts(octokit, repo);
 
-  // Fetch details for each alert
-  const detailedAlerts = await Promise.all(
-    alerts.map((alert) => fetchAlertDetails(octokit, repo, alert.number)),
-  );
+  if (detail !== 'full' && detail !== 'raw') {
+    return alerts;
+  }
 
-  return detailedAlerts;
+  return Promise.all(alerts.map((alert) => fetchAlertDetails(octokit, repo, alert.number)));
 }

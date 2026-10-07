@@ -1,9 +1,25 @@
-import type { SimpleGit } from 'simple-git';
-import simpleGit from 'simple-git';
-import { describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getGitHubRepoFromRemote, parseGitHubUrl } from '../lib/git.js';
 
-vi.mock('simple-git');
+vi.mock('node:child_process');
+
+/**
+ * Fake git: answers `git remote` with `remotes` and `git remote get-url [--push] <name>`
+ * from `urls`/`pushUrls`. Like real git, a remote with no fetch URL reports its own name.
+ */
+function fakeGit(
+  remotes: string,
+  urls: Record<string, string>,
+  pushUrls: Record<string, string> = {},
+) {
+  vi.mocked(execFileSync).mockImplementation(((_file: string, args: string[]) => {
+    if (args.length === 1) return `${remotes}\n`;
+    const name = args[args.length - 1];
+    const url = args[2] === '--push' ? pushUrls[name] : urls[name];
+    return `${url ?? name}\n`;
+  }) as never);
+}
 
 describe('parseGitHubUrl', () => {
   it('should parse HTTPS URL', () => {
@@ -35,114 +51,97 @@ describe('parseGitHubUrl', () => {
     const result = parseGitHubUrl('https://github.com/my-org_name/my-repo_name.git');
     expect(result).toEqual({ owner: 'my-org_name', repo: 'my-repo_name' });
   });
+
+  it('should parse the owner/name shorthand', () => {
+    expect(parseGitHubUrl('owner/repo')).toEqual({ owner: 'owner', repo: 'repo' });
+  });
+
+  it('should parse ssh:// URLs with a port and URLs with a trailing slash', () => {
+    expect(parseGitHubUrl('ssh://git@github.com:22/owner/repo.git')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+    expect(parseGitHubUrl('https://github.com/owner/repo/')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  it.each([
+    'https://notgithub.com/owner/repo',
+    'https://evil.com/github.com/owner/repo',
+    'git@notgithub.com:owner/repo.git',
+    'https://github.com/owner/repo/tree/main',
+  ])('should reject %s instead of reporting on another repository', (url) => {
+    expect(parseGitHubUrl(url)).toBeNull();
+  });
 });
 
 describe('getGitHubRepoFromRemote', () => {
-  it('should extract repo from origin remote', async () => {
-    const mockGit = {
-      getRemotes: vi
-        .fn()
-        .mockResolvedValue([
-          { name: 'origin', refs: { fetch: 'https://github.com/owner/repo.git', push: '' } },
-        ]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
-
-    const result = await getGitHubRepoFromRemote();
-
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' });
-    expect(mockGit.getRemotes).toHaveBeenCalledWith(true);
+  beforeEach(() => {
+    vi.mocked(execFileSync).mockReset();
   });
 
-  it('should use first remote if origin not found', async () => {
-    const mockGit = {
-      getRemotes: vi
-        .fn()
-        .mockResolvedValue([
-          { name: 'upstream', refs: { fetch: 'https://github.com/other/repo.git', push: '' } },
-        ]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should extract repo from origin remote', () => {
+    fakeGit('upstream\norigin', {
+      origin: 'https://github.com/owner/repo.git',
+      upstream: 'https://github.com/other/repo.git',
+    });
 
-    const result = await getGitHubRepoFromRemote();
-
-    expect(result).toEqual({ owner: 'other', repo: 'repo' });
+    expect(getGitHubRepoFromRemote()).toEqual({ owner: 'owner', repo: 'repo' });
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'get-url', 'origin'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    );
   });
 
-  it('should use push URL if fetch URL not available', async () => {
-    const mockGit = {
-      getRemotes: vi
-        .fn()
-        .mockResolvedValue([
-          { name: 'origin', refs: { fetch: '', push: 'git@github.com:owner/repo.git' } },
-        ]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should use first remote if origin not found', () => {
+    fakeGit('upstream', { upstream: 'git@github.com:other/repo.git' });
 
-    const result = await getGitHubRepoFromRemote();
-
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' });
+    expect(getGitHubRepoFromRemote()).toEqual({ owner: 'other', repo: 'repo' });
   });
 
-  it('should throw error if no remotes found', async () => {
-    const mockGit = {
-      getRemotes: vi.fn().mockResolvedValue([]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should fall back to the push URL when the remote has no fetch URL', () => {
+    fakeGit('origin', {}, { origin: 'git@github.com:owner/repo.git' });
 
-    await expect(getGitHubRepoFromRemote()).rejects.toThrow('No git remotes found');
+    expect(getGitHubRepoFromRemote()).toEqual({ owner: 'owner', repo: 'repo' });
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'get-url', '--push', 'origin'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    );
   });
 
-  it('should throw error if remote has no valid URL', async () => {
-    const mockGit = {
-      getRemotes: vi.fn().mockResolvedValue([{ name: 'origin', refs: { fetch: '', push: '' } }]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should throw error if no remotes found', () => {
+    fakeGit('', {});
 
-    await expect(getGitHubRepoFromRemote()).rejects.toThrow('No valid remote URL found');
+    expect(() => getGitHubRepoFromRemote()).toThrow('No git remotes found');
   });
 
-  it('should throw error if URL cannot be parsed', async () => {
-    const mockGit = {
-      getRemotes: vi
-        .fn()
-        .mockResolvedValue([{ name: 'origin', refs: { fetch: 'not-a-github-url', push: '' } }]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should throw error if URL cannot be parsed', () => {
+    fakeGit('origin', { origin: 'not-a-github-url' });
 
-    await expect(getGitHubRepoFromRemote()).rejects.toThrow('Unable to parse GitHub repository');
+    expect(() => getGitHubRepoFromRemote()).toThrow('Unable to parse GitHub repository');
   });
 
-  it('should handle git errors', async () => {
-    const mockGit = {
-      getRemotes: vi.fn().mockRejectedValue(new Error('Git error')),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should propagate git errors', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('fatal: not a git repository');
+    });
 
-    await expect(getGitHubRepoFromRemote()).rejects.toThrow('Git error');
+    expect(() => getGitHubRepoFromRemote()).toThrow('fatal: not a git repository');
   });
 
-  it('should handle non-Error exceptions', async () => {
-    const mockGit = {
-      getRemotes: vi.fn().mockRejectedValue('string error'),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
+  it('should pass cwd to git', () => {
+    fakeGit('origin', { origin: 'https://github.com/owner/repo.git' });
 
-    await expect(getGitHubRepoFromRemote()).rejects.toThrow('Failed to get git remote information');
-  });
+    getGitHubRepoFromRemote('/custom/path');
 
-  it('should pass cwd parameter to simpleGit', async () => {
-    const mockGit = {
-      getRemotes: vi
-        .fn()
-        .mockResolvedValue([
-          { name: 'origin', refs: { fetch: 'https://github.com/owner/repo.git', push: '' } },
-        ]),
-    };
-    vi.mocked(simpleGit).mockReturnValue(mockGit as unknown as SimpleGit);
-
-    await getGitHubRepoFromRemote('/custom/path');
-
-    expect(simpleGit).toHaveBeenCalledWith('/custom/path');
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['remote'],
+      expect.objectContaining({ cwd: '/custom/path' }),
+    );
   });
 });

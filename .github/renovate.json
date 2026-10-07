@@ -1,4 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>ivuorinen/renovate-config"]
+  "extends": ["local>ivuorinen/renovate-config"],
+  "packageRules": [
+    {
+      "description": "devDependency majors cannot break package consumers, so drop the preset's breaking '!' marker",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["major"],
+      "commitMessagePrefix": "chore(deps-dev): "
+    },
+    {
+      "description": "Name vitest updates after vitest; they were titled 'update vite'",
+      "matchPackageNames": ["vitest", "@vitest/**"],
+      "groupName": "vitest"
+    }
+  ]
 }

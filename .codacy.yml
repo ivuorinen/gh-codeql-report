@@ -1,0 +1,6 @@
+---
+# Codacy analyzes without installing dependencies, so its type-aware ESLint rules
+# see every vitest and octokit type as unresolved and flag each use as unsafe.
+# The test suite is linted by biome and run by vitest in CI instead.
+exclude_paths:
+  - "src/__tests__/**"
